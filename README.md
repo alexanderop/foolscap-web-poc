@@ -1,95 +1,74 @@
 # Foolscap Web POC
 
-[**Open the live experiment**](https://foolscap-web-poc.vercel.app) · [Verification evidence](docs/verification.md)
+[**Open the writing room**](https://foolscap-web-poc.vercel.app) · [Mac preview downloads](https://github.com/alexanderop/foolscap-web-poc/releases/tag/v0.2.0) · [Verification](docs/verification.md)
 
-A quiet Vue + Vite + CodeMirror writing room that connects a hosted website to a local file and a locally authenticated Codex CLI.
+A Vue + Vite + CodeMirror experiment: a website with inline edit review, local files, and a local writing agent.
 
-This is a standalone experiment, not a port of the Electron application. The hosted app works immediately as a scratch editor with a clearly labelled, scripted inline-edit demo.
+## Start writing
 
-## Run locally
+Open the website and choose **Start writing**. No account or installation is required. Drafts recover after a reload in this browser. **Open file** opens a file from your computer; supporting browsers can save back to that file, while others download an edited copy. Download important drafts as a backup.
 
-Requires Node 22.13+ (22.x) or 24.x and pnpm 10.28.2.
+The guided demo is scripted and clearly labelled. Real online AI is disabled until server credentials and usage limits are configured.
+
+## Connect your computer
+
+Foolscap Connect is a small desktop companion that bundles Codex. No repository clone, package manager, terminal, or copied pairing token is needed.
+
+1. Download the Apple Silicon Mac preview and open Foolscap Connect.
+2. Choose your writing folder in its native folder picker.
+3. Choose **Sign in** if needed and complete the agent provider's browser sign-in.
+4. Open the writing room, choose **Connect your computer**, then **Connect this browser**. Approve the native connection prompt and your browser's local-network permission.
+5. Open a file, select a passage, ask for an edit, and accept or reject the inline suggestion. **Save file** writes the accepted text back to disk.
+
+The companion remembers approved browsers. A reload reconnects while it is running. **Disconnect all browsers** revokes access. Start-at-login is optional. Closing the companion window leaves it running; use its Quit button to stop it.
+
+**Release limitation:** the Mac preview is unsigned and not notarized. It is a technical preview, not yet a warning-free installer suitable for general nontechnical distribution. Apple signing and notarization are required to finish that experience. Windows, Linux, Safari, Firefox, and mobile access are not qualified.
+
+## Boundaries
+
+- Vercel serves the editor. The companion listens only on loopback, checks exact origins and Host, and exposes only Markdown/text files inside the folder selected in the native app.
+- Browser pairing uses a nonextractable private key in IndexedDB, a fresh signed challenge, and explicit native approval. Short-lived session tokens stay in memory. The companion stores public-key fingerprints, not browser private keys.
+- Files use opaque IDs, real-path containment checks, bounded sizes, and revision-checked saves. Symlinks are excluded. Temporary-file replacement preserves complete writes, but is not a portable atomic compare-and-swap against a concurrent external writer.
+- Codex runs locally with local authentication; inference still uses its provider. Selected text and instructions go to that provider. It runs in a temporary directory with a read-only sandbox and structured output. Prompt instructions are not a tool-security boundary.
+- Changes invalidate stale proposals. Acceptance uses CodeMirror undo history. Cancellation terminates the owned agent process group. The website cannot select executables or arbitrary paths.
+- Online AI, when configured, sends selected text and instructions through the Vercel endpoint to OpenAI. The UI distinguishes it from local-agent mode.
+
+## Develop
+
+Requires Node 22.13+ or 24.x and pnpm 10.28.2.
 
 ```sh
 pnpm install --frozen-lockfile
 pnpm dev
-```
-
-Open http://127.0.0.1:5197. Select **Preview an inline edit** to review, accept, reject, and undo a scripted suggestion. No model is called in guided-demo mode.
-
-## Use your local Codex and a real file
-
-Install the official Codex CLI and authenticate with `codex login`. This project invokes the installed `codex` binary; it does not collect API keys or copy your credentials into the browser.
-
-Start the companion in another terminal, choosing one Markdown file and the exact website origin:
-
-```sh
-pnpm companion --file /absolute/path/to/draft.md --origin http://127.0.0.1:5197
-```
-
-For the hosted site, use `--origin https://foolscap-web-poc.vercel.app`. Multiple `--origin` arguments are supported. The origin must not have a trailing slash or path.
-
-1. Open the website and click **Connect local agent**.
-2. Paste the pairing token printed by the companion. Allow local network access if the browser asks.
-3. Click **Open local file**. Only the file chosen in the terminal is available.
-4. Select a passage, write an instruction, and click **Suggest an edit** (⌘/Ctrl+Enter).
-5. Review the replacement inside the editor. Accept or reject it. Undo restores the original in one action.
-6. Click **Save file** (⌘/Ctrl+S). Reopen it to check the saved text.
-
-The token lives only in tab memory; reloading disconnects. Keep the terminal running. Ctrl+C stops the companion. Drafts are not automatically saved: save to the local file or download Markdown before closing the page.
-
-## How it works
-
-```mermaid
-flowchart LR
-  V[Vercel: static assets] --> B[Browser: Vue + CodeMirror]
-  B -->|Authenticated HTTP to loopback| L[Local Node companion]
-  L -->|Read / revision-checked save| F[One chosen Markdown file]
-  L -->|Selected text + instruction| C[Installed Codex CLI]
-  C --> P[Model provider]
-  C -->|Structured proposal| L
-  L --> B
-```
-
-Vercel serves the UI. It does not run Codex, receive the document via an application endpoint, or store the companion token. The browser sends the selected text directly to the local companion; Codex sends it to its model provider. “Local agent” means the CLI runs locally, not that model inference is offline.
-
-The companion launches Codex in an empty temporary working directory with a read-only sandbox, ignores user configuration for the run, and requests a structured replacement and reason. It asks the model not to use tools. This is **not** a claim that a prompt disables all agent tools or prevents all local reads. The normal Codex sandbox and authentication still apply. Requests time out after two minutes; cancellation terminates the owned process group. Windows process-tree cleanup has not been qualified.
-
-## Scope and safeguards
-
-- Loopback-only listener; exact website origins and Host validation.
-- Random per-run bearer token; no cookies, wildcard CORS, token URLs, or persistent browser credentials.
-- Fixed file selected at startup; no browser-supplied paths, executable names, command arguments, or environment variables.
-- Validated inputs, bounded files/selections, one active rewrite, and revision-checked saves.
-- Writes use a sibling temporary file and rename. External changes detected before saving are rejected. This is not a portable atomic compare-and-swap against another process writing in the tiny final check/rename interval.
-- Any document change invalidates an in-flight or displayed proposal; accepted changes use CodeMirror history.
-- Download recovery remains available when disconnected or when a disk conflict occurs.
-
-Browser localhost access varies. Start with a current desktop Chromium browser and allow its normal local-network permission. No insecure-browser flags, tunnel, extension, or disabled web security are required by the design. Other browsers and mobile devices are not promised: `localhost` always means the computer running that browser.
-
-This POC intentionally leaves out folder browsing, Git publishing, collaboration, background autosave, installable PWA behavior, and Electron packaging.
-
-## Verification
-
-```sh
 pnpm exec playwright install chromium
 pnpm verify
 ```
 
-`verify` runs Oxlint, formatting checks, real-companion Node integration tests, strict typechecks, the Vite production build, and Chromium editor journeys. Browser tests use a **fixture rewrite provider**, not a live model. See [docs/verification.md](docs/verification.md) for separately recorded hosted and live-agent evidence.
-
-## Deploy to Vercel
-
-Import this repository as a Vite project, or run:
+The editor runs at http://127.0.0.1:5197. Browser tests use a fixture provider. The desktop companion allows the production website origin; it does not broadly trust development origins.
 
 ```sh
-vercel --prod
+pnpm connect:dev
+pnpm test:connect
+pnpm connect:package
 ```
 
-The output is `dist`; the companion remains on your computer. Production headers allow connections only to the same origin and HTTP loopback hosts. Never deploy the companion as a public server. GitHub Actions runs the deterministic verification suite on pushes and pull requests.
+The build downloads pinned official Codex 0.160.0 binaries and their license. `connect:package` expects Apple signing credentials and notarization configuration. The published preview is built with explicit signing/notarization overrides. Set `CONNECT_ARCH=x64` before `connect:build` and select `--x64` in electron-builder to build Intel artifacts. Only architectures explicitly recorded in verification have runtime evidence.
+
+## Hosted AI configuration
+
+Deploy with Vercel's Vite integration. The `/api/hosted` function is disabled unless all these environment variables exist:
+
+- `HOSTED_AI_ENABLED=true`
+- `OPENAI_API_KEY` and `OPENAI_MODEL`
+- `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`
+
+`APP_ORIGIN` defaults to the production URL. Never use `VITE_` variables for secrets. Durable Redis counters limit requests to 10 per IP per day and 100 total per day; failure to check quota denies the request. These are preview abuse controls, not an account/billing system. Select a model supporting structured outputs. Provider credentials are never sent to the browser.
+
+The optional hosted endpoint has fixture coverage; real hosted inference is not enabled or verified in this deployment.
 
 ## References
 
-- [Codex non-interactive mode](https://learn.chatgpt.com/docs/non-interactive-mode)
-- [Chrome local network access](https://developer.chrome.com/blog/local-network-access)
-- [Vercel CLI deployment](https://vercel.com/docs/cli/deploy)
+- [Codex CLI](https://learn.chatgpt.com/docs/codex/cli)
+- [Structured outputs](https://developers.openai.com/api/docs/guides/structured-outputs)
+- [Chrome local-network access](https://developer.chrome.com/blog/local-network-access)
+- [Electron packaging](https://www.electronjs.org/docs/latest/tutorial/tutorial-packaging)

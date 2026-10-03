@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'none'"
+    />
+    <title>Foolscap Connect</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        background: #f6f5f1;
+        color: #3f4a38;
+        font:
+          14px -apple-system,
+          BlinkMacSystemFont,
+          sans-serif;
+        margin: 0;
+        padding: 34px;
+      }
+      h1 {
+        font:
+          34px Georgia,
+          serif;
+        margin: 12px 0;
+      }
+      p {
+        line-height: 1.7;
+        color: #69725f;
+      }
+      label {
+        display: block;
+      }
+      section {
+        padding: 18px;
+        border: 1px solid #d9ddcf;
+        border-radius: 8px;
+        margin: 18px 0;
+      }
+      h2 {
+        font-size: 15px;
+        margin: 0 0 10px;
+      }
+      button {
+        font: inherit;
+        cursor: pointer;
+        border: 1px solid #ccd3c2;
+        background: #eeefe7;
+        color: #405138;
+        padding: 10px 15px;
+        border-radius: 5px;
+      }
+      button:disabled {
+        opacity: 0.5;
+        cursor: wait;
+      }
+      .primary {
+        width: 100%;
+        background: #465b3e;
+        color: white;
+        margin: 12px 0;
+      }
+      small {
+        display: block;
+        color: #77826b;
+        line-height: 1.5;
+      }
+      .folder {
+        overflow-wrap: anywhere;
+        font-size: 12px;
+      }
+      footer {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        margin-top: 20px;
+      }
+      footer button {
+        font-size: 12px;
+      }
+      #status {
+        font-size: 12px;
+        min-height: 42px;
+      }
+      input {
+        margin-right: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <small>YOUR COMPUTER. YOUR WORDS.</small>
+    <h1>Foolscap Connect</h1>
+    <p>
+      A small connection between your writing room and your computer. Close this window to keep it
+      running.
+    </p>
+    <section>
+      <h2>1. Choose your writing folder</h2>
+      <p id="folder" class="folder">No folder connected yet.</p>
+      <button data-action="choose-folder">Choose folder…</button>
+    </section>
+    <section>
+      <h2>2. Connect your writing agent</h2>
+      <p id="agent">Checking your sign-in…</p>
+      <button id="sign-in" data-action="sign-in">Sign in to Codex</button
+      ><button data-action="check-login">Check sign-in</button
+      ><small>Codex is included. No terminal or separate installation needed.</small>
+    </section>
+    <button class="primary" data-action="open-editor">Open writing room ↗</button
+    ><label
+      ><input type="checkbox" id="autostart" />Open automatically when I sign in to my Mac</label
+    >
+    <p id="status" role="status"></p>
+    <footer>
+      <button data-action="forget">Disconnect all browsers</button
+      ><button data-action="quit">Quit companion</button>
+    </footer>
+    <script src="renderer.js"></script>
+  </body>
+</html>

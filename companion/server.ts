@@ -1,7 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
 import { constants } from 'node:fs'
-import { open, realpath, rename, rm, writeFile } from 'node:fs/promises'
+import { open, rename, rm, writeFile } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
 import {
   HealthSchema,
@@ -10,6 +10,8 @@ import {
   RewriteSchema,
   SaveSchema,
 } from '../shared/protocol.ts'
+import { createPairing, type PairingApproval } from './pairing.ts'
+import { createWorkspace } from './workspace.ts'
 import type { Rewrite } from './codex.ts'
 
 class HttpError extends Error {
@@ -37,29 +39,33 @@ async function readBody(request: IncomingMessage): Promise<unknown> {
   }
 }
 export async function createCompanion(options: {
-  file: string
+  file?: string
+  folder?: string
+  approvePairing?: PairingApproval
   origins: readonly string[]
   token?: string
   rewrite: Rewrite
   provider?: 'codex' | 'fixture'
 }) {
-  const file = await realpath(options.file)
+  const workspace = await createWorkspace(options)
+  const pairing = options.approvePairing ? createPairing(options.approvePairing) : undefined
   const token = options.token ?? randomBytes(32).toString('base64url')
   const jobs = new Map<string, AbortController>()
   let saving = false
-  const read = async () => {
+  const read = async (id = 'document') => {
+    const file = await workspace.resolve(id)
     const handle = await open(file, constants.O_RDONLY | constants.O_NOFOLLOW)
     try {
       const stat = await handle.stat()
       if (!stat.isFile() || stat.size > MAX_TEXT)
         throw new HttpError(413, 'Choose a Markdown file smaller than 100 KB.')
       const text = await handle.readFile('utf8')
-      return { name: basename(file), text, revision: digest(text) }
+      return { id, name: basename(file), text, revision: digest(text) }
     } finally {
       await handle.close()
     }
   }
-  await read()
+  if (options.file) await read()
   const respond = (response: ServerResponse, status: number, value: unknown) => {
     response.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
     response.end(JSON.stringify(value))
@@ -83,9 +89,20 @@ export async function createCompanion(options: {
         response.end()
         return
       }
+      if (pairing && request.method === 'POST' && request.url === '/pair/challenge') {
+        respond(response, 200, pairing.challenge(await readBody(request), origin))
+        return
+      }
+      if (pairing && request.method === 'POST' && request.url === '/pair/complete') {
+        respond(response, 200, await pairing.complete(await readBody(request), origin))
+        return
+      }
       const supplied = Buffer.from(request.headers.authorization ?? '')
       const expected = Buffer.from(`Bearer ${token}`)
-      if (supplied.length !== expected.length || !timingSafeEqual(supplied, expected))
+      if (
+        !(supplied.length === expected.length && timingSafeEqual(supplied, expected)) &&
+        !pairing?.accepts((request.headers.authorization ?? '').replace(/^Bearer /, ''), origin)
+      )
         throw new HttpError(401, 'Pairing token is missing or incorrect.')
       if (request.url === '/health' && request.method === 'GET') {
         respond(
@@ -94,17 +111,23 @@ export async function createCompanion(options: {
           HealthSchema.parse({
             name: 'foolscap-companion',
             provider: options.provider ?? 'codex',
-            file: basename(file),
+            file: workspace.name,
           }),
         )
         return
       }
-      if (request.url === '/document' && request.method === 'GET') {
-        respond(response, 200, await read())
+      const url = new URL(request.url ?? '/', 'http://localhost')
+      if (url.pathname === '/files' && request.method === 'GET') {
+        respond(response, 200, await workspace.list())
+        return
+      }
+      if (url.pathname === '/document' && request.method === 'GET') {
+        respond(response, 200, await read(url.searchParams.get('id') ?? 'document'))
         return
       }
       if (request.url === '/document' && request.method === 'PUT') {
         const input = SaveSchema.parse(await readBody(request))
+        const file = await workspace.resolve(input.id)
         if (saving) throw new HttpError(409, 'Another save is in progress. Try again.')
         saving = true
         const temporary = join(
@@ -112,7 +135,7 @@ export async function createCompanion(options: {
           `.${basename(file)}.${randomBytes(8).toString('hex')}.tmp`,
         )
         try {
-          const before = await read()
+          const before = await read(input.id)
           if (before.revision !== input.revision)
             throw new HttpError(
               409,
@@ -121,13 +144,14 @@ export async function createCompanion(options: {
           if (Buffer.byteLength(input.text) > MAX_TEXT)
             throw new HttpError(413, 'Document exceeds 100 KB.')
           await writeFile(temporary, input.text, { flag: 'wx', mode: 0o600 })
-          if ((await read()).revision !== input.revision)
+          if ((await read(input.id)).revision !== input.revision)
             throw new HttpError(
               409,
               'The file changed while saving. Your draft is still in the editor.',
             )
           await rename(temporary, file)
           respond(response, 200, {
+            id: input.id,
             name: basename(file),
             text: input.text,
             revision: digest(input.text),
@@ -187,7 +211,8 @@ export async function createCompanion(options: {
   return {
     server,
     token,
-    file,
+    file: workspace.fixed,
+    revoke: () => pairing?.revoke(),
     async close() {
       for (const job of jobs.values()) job.abort()
       server.closeAllConnections()

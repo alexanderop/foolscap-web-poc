@@ -1,0 +1,22 @@
+appId: dev.alexop.foolscap-connect
+productName: Foolscap Connect
+directories:
+  app: desktop-app
+  output: release
+files:
+  - main.mjs
+  - preload.cjs
+  - index.html
+  - renderer.js
+extraResources:
+  - from: desktop-app/codex
+    to: codex
+protocols:
+  name: Foolscap Connect
+  schemes: [foolscap-connect]
+mac:
+  category: public.app-category.productivity
+  target: [zip]
+  artifactName: Foolscap-Connect-${arch}.zip
+  hardenedRuntime: true
+  notarize: true

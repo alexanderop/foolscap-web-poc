@@ -11,5 +11,12 @@
     "allowImportingTsExtensions": true,
     "noEmit": true
   },
-  "include": ["companion/**/*.ts", "shared/**/*.ts", "tests/**/*.ts", "*.config.ts"]
+  "include": [
+    "companion/**/*.ts",
+    "shared/**/*.ts",
+    "tests/**/*.ts",
+    "*.config.ts",
+    "desktop/**/*.ts",
+    "api/**/*.ts"
+  ]
 }

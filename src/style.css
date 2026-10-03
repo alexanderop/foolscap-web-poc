@@ -651,3 +651,89 @@ button:hover:not(:disabled) {
     padding: 25px;
   }
 }
+.welcome-strip {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 30px;
+  padding: 28px 43px;
+  background: #e9eddf;
+  border-bottom: 1px solid var(--line);
+}
+.welcome-strip h1 {
+  font:
+    27px Georgia,
+    serif;
+  margin: 0 0 8px;
+}
+.welcome-strip p {
+  font-size: 11px;
+  line-height: 1.8;
+  max-width: 610px;
+  margin: 0;
+  color: #67715b;
+}
+.welcome-actions {
+  display: flex;
+  gap: 14px;
+  flex-shrink: 0;
+}
+.welcome-actions .primary-button {
+  width: auto;
+}
+.download-details {
+  font-size: 11px;
+  line-height: 1.8;
+  margin-top: 24px;
+  color: #69745e;
+}
+.download-details summary {
+  cursor: pointer;
+}
+.setup-steps .primary-button {
+  text-decoration: none;
+  font-size: 11px;
+  display: inline-flex;
+  width: auto;
+  margin: 8px 0;
+}
+.setup-steps p {
+  margin: 5px 0 10px;
+}
+.file-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 24px;
+  max-height: 400px;
+  overflow: auto;
+}
+.file-list button {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  text-align: left;
+  padding: 12px;
+  border: 1px solid #d5dccb;
+  border-radius: 4px;
+  overflow-wrap: anywhere;
+}
+.file-list p {
+  font-size: 12px;
+  line-height: 1.8;
+}
+@media (max-width: 720px) {
+  .welcome-strip {
+    padding: 22px;
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 18px;
+  }
+  .welcome-actions {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .welcome-actions .connection {
+    font-size: 10px;
+  }
+}

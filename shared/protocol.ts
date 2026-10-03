@@ -1,11 +1,20 @@
 import { z } from 'zod'
 export const MAX_TEXT = 100_000
 export const DocumentSchema = z
-  .object({ name: z.string(), text: z.string().max(MAX_TEXT), revision: z.string() })
+  .object({
+    id: z.string().default('document'),
+    name: z.string(),
+    text: z.string().max(MAX_TEXT),
+    revision: z.string(),
+  })
   .strict()
 export type DocumentSnapshot = z.infer<typeof DocumentSchema>
 export const SaveSchema = z
-  .object({ text: z.string().max(MAX_TEXT), revision: z.string() })
+  .object({
+    id: z.string().default('document'),
+    text: z.string().max(MAX_TEXT),
+    revision: z.string(),
+  })
   .strict()
 export const RewriteSchema = z
   .object({
@@ -26,3 +35,5 @@ export const HealthSchema = z
     file: z.string(),
   })
   .strict()
+
+export const FilesSchema = z.array(z.object({ id: z.string(), name: z.string() }).strict())

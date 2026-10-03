@@ -1,5 +1,6 @@
 import {
   DocumentSchema,
+  FilesSchema,
   HealthSchema,
   ProposalSchema,
   type RewriteRequest,
@@ -52,9 +53,11 @@ export function createClient(base: string, token: string) {
   }
   return {
     health: async () => HealthSchema.parse(await request('/health')),
-    read: async () => DocumentSchema.parse(await request('/document')),
-    save: async (text: string, revision: string) =>
-      DocumentSchema.parse(await request('/document', 'PUT', { text, revision })),
+    files: async () => FilesSchema.parse(await request('/files')),
+    read: async (id = 'document') =>
+      DocumentSchema.parse(await request('/document?id=' + encodeURIComponent(id))),
+    save: async (text: string, revision: string, id = 'document') =>
+      DocumentSchema.parse(await request('/document', 'PUT', { id, text, revision })),
     rewrite: async (input: RewriteRequest, signal: AbortSignal) =>
       ProposalSchema.parse(await request('/rewrite', 'POST', input, signal)),
     cancel: async (id: string) => {

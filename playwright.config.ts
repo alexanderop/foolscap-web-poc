@@ -2,7 +2,7 @@ import { defineConfig, devices } from '@playwright/test'
 export default defineConfig({
   testDir: './tests',
   testMatch: '**/*.spec.ts',
-  testIgnore: '**/live/**',
+  testIgnore: ['**/live/**', '**/desktop/**'],
   fullyParallel: false,
   workers: 1,
   use: {
@@ -15,7 +15,7 @@ export default defineConfig({
     { command: 'pnpm dev', url: 'http://127.0.0.1:5197', reuseExistingServer: !process.env.CI },
     {
       command: 'pnpm exec tsx tests/fixture-companion.ts',
-      url: 'http://127.0.0.1:43124',
+      url: 'http://127.0.0.1:43123',
       reuseExistingServer: !process.env.CI,
     },
   ],

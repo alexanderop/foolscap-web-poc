@@ -30,17 +30,23 @@ import {
 import { createClient, type CompanionClient } from './client'
 import { inlineReview, setProposal } from './inlineReview'
 import { sample, demoOriginal, demoReplacement } from './sample'
-import type { DocumentSnapshot, Proposal } from '../shared/protocol'
+import { pairComputer, companionAddress } from './pairing'
+import { pickBrowserFile, saveBrowserFile, type LocalHandle } from './browserFiles'
+import { ProposalSchema, type DocumentSnapshot, type Proposal } from '../shared/protocol'
 
 const mount = ref<HTMLDivElement>()
 const editor = shallowRef<EditorView>()
 const content = ref(sample)
 const selected = ref('')
 const instruction = ref('Make this clearer and more concise.')
-const mode = ref<'demo' | 'codex'>('demo')
+const mode = ref<'demo' | 'codex' | 'hosted'>('demo')
 const dialog = ref(false)
-const token = ref('')
-const endpoint = ref('http://127.0.0.1:43123')
+const browserHandle = shallowRef<LocalHandle>()
+const welcome = ref(true)
+const cloudAvailable = ref(false)
+const filesOpen = ref(false)
+const availableFiles = ref<{ id: string; name: string }[]>([])
+let pairController: AbortController | undefined
 const client = shallowRef<CompanionClient>()
 const file = ref<DocumentSnapshot>()
 const busy = ref(false)
@@ -53,9 +59,6 @@ const review = ref(false)
 const words = computed(() => content.value.trim().split(/\s+/u).filter(Boolean).length)
 const dirty = computed(() =>
   file.value ? content.value !== file.value.text : content.value !== sample,
-)
-const localCommand = computed(
-  () => `pnpm companion --file /absolute/path/to/draft.md --origin ${window.location.origin}`,
 )
 let version = 0
 let controller: AbortController | undefined
@@ -153,7 +156,7 @@ async function rewrite() {
     previewDemo()
     return
   }
-  if (!client.value) {
+  if (mode.value === 'codex' && !client.value) {
     dialog.value = true
     return
   }
@@ -175,12 +178,29 @@ async function rewrite() {
   activeId = id
   activeClient = client.value
   busy.value = true
-  status.value = 'Your local Codex is working on the selection…'
+  status.value =
+    mode.value === 'hosted'
+      ? 'Your online writing partner is working…'
+      : 'Your local Codex is working on the selection…'
   try {
-    const proposal = await client.value.rewrite(
-      { id, text, instruction: instruction.value },
-      ownController.signal,
-    )
+    const input = { id, text, instruction: instruction.value }
+    let proposal: Proposal
+    if (mode.value === 'hosted') {
+      const response = await fetch('/api/hosted', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+        signal: ownController.signal,
+      })
+      const value: unknown = await response.json()
+      if (!response.ok)
+        throw new Error(
+          typeof value === 'object' && value && 'error' in value
+            ? String(value.error)
+            : 'Online AI is unavailable.',
+        )
+      proposal = ProposalSchema.parse(value)
+    } else proposal = await client.value!.rewrite(input, ownController.signal)
     if (!ownController.signal.aborted) showProposal(proposal, from, to, text, expectedVersion)
   } catch (cause) {
     if (!ownController.signal.aborted)
@@ -194,63 +214,121 @@ async function rewrite() {
     }
   }
 }
-async function connect() {
+async function connect(interactive = true) {
+  if (pairing.value) return
   pairing.value = true
   connectionError.value = ''
+  const own = new AbortController()
+  pairController = own
+  const timeout = setTimeout(() => own.abort(), interactive ? 120_000 : 5000)
   try {
-    const next = createClient(endpoint.value, token.value.trim())
+    const token = await pairComputer(interactive, own.signal)
+    if (!token || own.signal.aborted) return
+    const next = createClient(companionAddress, token)
     await next.health()
+    if (own.signal.aborted) return
     client.value = next
     mode.value = 'codex'
-    token.value = ''
     dialog.value = false
-    status.value = 'Companion connected. Open its local file when you are ready.'
-  } catch (cause) {
-    connectionError.value = cause instanceof Error ? cause.message : 'Could not connect.'
+    status.value = 'Your computer is connected. Choose Open file to browse your writing folder.'
+  } catch {
+    if (interactive && !own.signal.aborted)
+      connectionError.value =
+        'Open Foolscap Connect, choose your folder, then try again. Allow local network access if your browser asks.'
+    else if (interactive)
+      connectionError.value = 'Connection timed out. Open Foolscap Connect and try again.'
   } finally {
-    pairing.value = false
+    clearTimeout(timeout)
+    if (pairController === own) {
+      pairController = undefined
+      pairing.value = false
+    }
   }
 }
-async function openFile() {
-  if (!client.value) {
-    dialog.value = true
-    return
-  }
-  if (
-    dirty.value &&
-    !window.confirm(
-      'Replace the current draft with the local file? Download your draft first if you want to keep it.',
-    )
+function startWriting() {
+  welcome.value = false
+  editor.value?.focus()
+  try {
+    localStorage.setItem('foolscap-welcomed', 'yes')
+  } catch {}
+}
+function mayReplace() {
+  return (
+    !dirty.value ||
+    window.confirm('Replace this draft? Save or download it first if you want to keep it.')
   )
-    return
-  const view = editor.value
-  if (!view) return
+}
+function loadDocument(snapshot: DocumentSnapshot, handle?: LocalHandle) {
+  cancel()
+  discardReview()
+  file.value = snapshot
+  browserHandle.value = handle
+  editor.value?.setState(makeState(snapshot.text))
+  content.value = snapshot.text
+  selected.value = ''
+  version++
+  welcome.value = false
+  filesOpen.value = false
+  status.value = handle
+    ? 'File opened. Save writes back to the file you chose.'
+    : client.value
+      ? 'Opened from your writing folder.'
+      : 'File opened. Save downloads your edited copy.'
+}
+async function openFile() {
+  if (!mayReplace()) return
   error.value = ''
   const startingVersion = version
-  const currentClient = client.value
   try {
-    const snapshot = await currentClient.read()
-    if (version !== startingVersion || client.value !== currentClient)
-      throw new Error('Your draft changed while opening. Try again when ready.')
-    cancel()
-    discardReview()
-    file.value = snapshot
-    view.setState(makeState(snapshot.text))
-    content.value = snapshot.text
-    selected.value = ''
-    version++
-    status.value = 'Opened from your computer. Changes save only when you choose Save file.'
+    if (client.value) {
+      availableFiles.value = await client.value.files()
+      filesOpen.value = true
+      return
+    }
+    const picked = await pickBrowserFile()
+    if (!picked) return
+    if (version !== startingVersion)
+      throw new Error('Your draft changed while opening. Please try again.')
+    loadDocument(
+      { id: 'browser', name: picked.name, text: picked.text, revision: '' },
+      picked.handle,
+    )
+  } catch (cause) {
+    if (cause instanceof DOMException && cause.name === 'AbortError') return
+    error.value = cause instanceof Error ? cause.message : 'Could not open file.'
+  }
+}
+async function openConnectedFile(id: string) {
+  const current = client.value
+  const startingVersion = version
+  if (!current) return
+  try {
+    const snapshot = await current.read(id)
+    if (version !== startingVersion || current !== client.value)
+      throw new Error('Your draft changed while opening. Please try again.')
+    loadDocument(snapshot)
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : 'Could not open file.'
   }
 }
 async function saveFile() {
-  if (!client.value || !file.value || saving.value) return
+  if (saving.value) return
+  if (
+    !file.value ||
+    (!browserHandle.value && file.value.id === 'browser') ||
+    (!client.value && !browserHandle.value)
+  ) {
+    download()
+    return
+  }
   saving.value = true
   error.value = ''
   const text = content.value
   try {
-    file.value = await client.value.save(text, file.value.revision)
+    if (browserHandle.value) {
+      await saveBrowserFile(browserHandle.value, file.value.text, text)
+      file.value = { ...file.value, text }
+    } else file.value = await client.value!.save(text, file.value.revision, file.value.id)
     status.value =
       content.value === text
         ? 'Saved to the file on your computer.'
@@ -264,8 +342,8 @@ async function saveFile() {
 function disconnect() {
   cancel()
   client.value = undefined
-  file.value = undefined
-  mode.value = 'demo'
+  if (file.value?.id !== 'browser') file.value = undefined
+  mode.value = cloudAvailable.value ? 'hosted' : 'demo'
   discardReview()
   status.value = 'Disconnected. Your draft remains in the editor.'
 }
@@ -321,6 +399,11 @@ function makeState(doc: string) {
         if (update.docChanged) {
           version++
           content.value = update.state.doc.toString()
+          try {
+            localStorage.setItem('foolscap-draft', content.value)
+          } catch {
+            /* writing works without storage */
+          }
           if (busy.value) {
             cancel()
             status.value = 'Rewrite cancelled because your draft changed.'
@@ -343,11 +426,30 @@ const beforeUnload = (event: BeforeUnloadEvent) => {
   }
 }
 onMounted(() => {
-  editor.value = new EditorView({ state: makeState(sample), parent: mount.value })
+  let draft = sample
+  try {
+    draft = localStorage.getItem('foolscap-draft') ?? sample
+    welcome.value = localStorage.getItem('foolscap-welcomed') !== 'yes'
+  } catch {}
+  content.value = draft
+  editor.value = new EditorView({ state: makeState(draft), parent: mount.value })
+  void connect(false)
+  void fetch('/api/hosted')
+    .then((response) => response.json())
+    .then((value: unknown) => {
+      cloudAvailable.value =
+        typeof value === 'object' &&
+        value !== null &&
+        'available' in value &&
+        value.available === true
+      if (cloudAvailable.value && !client.value) mode.value = 'hosted'
+    })
+    .catch(() => {})
   window.addEventListener('beforeunload', beforeUnload)
 })
 onBeforeUnmount(() => {
   cancel()
+  pairController?.abort()
   editor.value?.destroy()
   window.removeEventListener('beforeunload', beforeUnload)
 })
@@ -373,10 +475,24 @@ onBeforeUnmount(() => {
           <span class="status-dot" /> Local agent connected <X :size="13" />
         </button>
         <button v-else class="connection" @click="dialog = true">
-          <Plug :size="14" /> Connect local agent
+          <Plug :size="14" /> Connect your computer
         </button>
       </div>
     </header>
+    <section v-if="welcome" class="welcome-strip" aria-label="Get started">
+      <div>
+        <h1>Your words. No setup.</h1>
+        <p>
+          Write, open a file, or try an inline edit. Connect your computer only when you want your
+          local agent.
+        </p>
+      </div>
+      <div class="welcome-actions">
+        <button class="primary-button" @click="startWriting">
+          Start writing <ArrowUpRight :size="16" /></button
+        ><button class="connection" @click="dialog = true">Connect your computer</button>
+      </div>
+    </section>
     <main class="workspace">
       <section class="document-pane" aria-label="Writing workspace">
         <div class="document-bar">
@@ -386,8 +502,8 @@ onBeforeUnmount(() => {
           ><span class="document-kind">{{ file ? 'LOCAL FILE' : 'SCRATCH DRAFT' }}</span>
         </div>
         <div class="editor-actions">
-          <button :disabled="saving || busy" @click="openFile">Open local file</button
-          ><button :disabled="!file || saving" @click="saveFile">
+          <button :disabled="saving || busy" @click="openFile">Open file</button
+          ><button :disabled="saving" @click="saveFile">
             {{ saving ? 'Saving…' : 'Save file' }}</button
           ><span class="action-divider" /><button
             aria-label="Undo edit"
@@ -413,15 +529,18 @@ onBeforeUnmount(() => {
           <label for="agent">Writing partner</label
           ><select id="agent" v-model="mode" :disabled="busy">
             <option value="demo">Guided demo · no AI</option>
-            <option value="codex">Local Codex</option></select
+            <option value="codex">My computer · Codex</option>
+            <option v-if="cloudAvailable" value="hosted">Online writing partner</option></select
           ><span class="agent-note"
             ><span :class="['status-dot', { offline: !client || mode === 'demo' }]" />
             {{
-              mode === 'demo'
-                ? 'Scripted example, runs in this page'
-                : client
-                  ? 'Runs through your local companion'
-                  : 'Connect your companion to begin'
+              mode === 'hosted'
+                ? 'Selected text is sent to our AI provider'
+                : mode === 'demo'
+                  ? 'Scripted example, runs in this page'
+                  : client
+                    ? 'Runs through your local companion'
+                    : 'Connect your companion to begin'
             }}</span
           >
         </div>
@@ -454,11 +573,16 @@ onBeforeUnmount(() => {
           <button v-if="busy" type="button" class="primary-button" @click="cancelRewrite">
             Cancel rewrite <X :size="15" /></button
           ><button v-else type="submit" class="primary-button">
-            {{ client ? 'Suggest an edit' : 'Connect local agent' }} <ArrowUp :size="16" />
+            {{ client || mode === 'hosted' ? 'Suggest an edit' : 'Connect your computer' }}
+            <ArrowUp :size="16" />
           </button>
           <p class="shortcut-hint">⌘ / Ctrl + Enter to suggest</p>
         </form>
         <div v-if="error" class="error-message" role="alert">{{ error }}</div>
+        <p v-if="!cloudAvailable" class="privacy-note">
+          Online AI is coming soon. Writing, opening files, and the guided demo work now without an
+          account.
+        </p>
         <div class="how-it-works">
           <span class="eyebrow">THE IDEA IS SIMPLE</span>
           <div>
@@ -475,8 +599,11 @@ onBeforeUnmount(() => {
           </div>
         </div>
         <p class="privacy-note">
-          Only selected text and your instruction go to Codex. Your local login stays on your
-          computer. Codex sends that text to its model provider.
+          {{
+            mode === 'hosted'
+              ? 'Only the selected text and your instruction are sent to our hosted AI provider. The rest of your draft stays in your browser.'
+              : 'Only selected text and your instruction go to Codex. Your local login stays on your computer. Codex sends that text to its model provider.'
+          }}
         </p>
       </aside>
     </main>
@@ -492,48 +619,73 @@ onBeforeUnmount(() => {
   <DialogRoot v-model:open="dialog"
     ><DialogPortal
       ><DialogOverlay class="dialog-overlay" /><DialogContent class="dialog-content"
-        ><DialogTitle class="dialog-title">Bring your local agent.</DialogTitle
+        ><DialogTitle class="dialog-title">Connect your computer.</DialogTitle
         ><DialogDescription class="dialog-description"
-          >Run the companion on your computer, then paste its pairing token. Your browser may ask
-          for local network access.</DialogDescription
+          >Set up once. After that, Foolscap remembers this browser. No commands or pairing
+          codes.</DialogDescription
         ><DialogClose class="dialog-close" aria-label="Close connection dialog"
           ><X :size="18"
         /></DialogClose>
         <ol class="setup-steps">
           <li>
-            Clone the
-            <a
-              href="https://github.com/alexanderop/foolscap-web-poc"
-              target="_blank"
-              rel="noreferrer"
-              >GitHub repo</a
-            >
-            and run <code>pnpm install</code>.
+            <strong>Open Foolscap Connect.</strong>
+            <p>The small companion keeps your files and agent on your computer.</p>
+            <a class="primary-button" href="foolscap-connect://open"
+              >Open Foolscap Connect <ArrowUpRight :size="16"
+            /></a>
           </li>
-          <li>Install Codex and sign in with <code>codex login</code>.</li>
           <li>
-            Choose a Markdown file and start the companion:
-            <pre>{{ localCommand }}</pre>
+            <strong>Choose your writing folder.</strong>
+            <p>Sign in to Codex in the companion if you haven’t already.</p>
+          </li>
+          <li>
+            <strong>Approve this browser.</strong>
+            <p>Click below, then choose Allow connection in the companion.</p>
           </li>
         </ol>
-        <form class="connection-form" @submit.prevent="connect">
-          <label for="endpoint">Companion address</label
-          ><input id="endpoint" v-model="endpoint" type="url" required /><label for="token"
-            >Pairing token</label
-          ><input
-            id="token"
-            v-model="token"
-            type="password"
-            placeholder="Paste the token from your terminal"
-            autocomplete="off"
-            required
-          />
-          <p class="dialog-description">
-            The token stays in this tab’s memory. Reloading disconnects it.
+        <p v-if="connectionError" class="error-message" role="alert">{{ connectionError }}</p>
+        <button class="primary-button" :disabled="pairing" @click="connect(true)">
+          {{ pairing ? 'Waiting for your companion…' : 'Connect this browser' }} <Plug :size="16" />
+        </button>
+        <details class="download-details">
+          <summary>Don’t have the companion yet?</summary>
+          <p>
+            An Apple Silicon Mac preview is available for testing. It is not yet Apple-signed or
+            notarized, so it is not the finished one-click installer.
           </p>
-          <p v-if="connectionError" class="error-message" role="alert">{{ connectionError }}</p>
-          <button class="primary-button" :disabled="pairing">
-            {{ pairing ? 'Connecting…' : 'Connect companion' }} <Plug :size="16" />
-          </button></form></DialogContent></DialogPortal
-  ></DialogRoot>
+          <a
+            href="https://github.com/alexanderop/foolscap-web-poc/releases/tag/v0.2.0"
+            target="_blank"
+            rel="noreferrer"
+            >View Mac preview downloads ↗</a
+          >
+          <p>You can keep writing and open files without installing anything.</p>
+        </details>
+      </DialogContent></DialogPortal
+    ></DialogRoot
+  >
+  <DialogRoot v-model:open="filesOpen"
+    ><DialogPortal
+      ><DialogOverlay class="dialog-overlay" /><DialogContent class="dialog-content"
+        ><DialogTitle class="dialog-title">Your writing folder</DialogTitle
+        ><DialogDescription class="dialog-description"
+          >Choose a document. Only files in the folder you approved are shown.</DialogDescription
+        ><DialogClose class="dialog-close" aria-label="Close file picker"
+          ><X :size="18"
+        /></DialogClose>
+        <div class="file-list">
+          <button
+            v-for="entry in availableFiles"
+            :key="entry.id"
+            @click="openConnectedFile(entry.id)"
+          >
+            <FileText :size="16" />{{ entry.name }}
+          </button>
+          <p v-if="!availableFiles.length">
+            No Markdown or text files found. Choose a different folder in Foolscap Connect.
+          </p>
+        </div></DialogContent
+      ></DialogPortal
+    ></DialogRoot
+  >
 </template>

@@ -14,11 +14,15 @@
     "companion": "tsx companion/cli.ts",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "lint": "oxlint src companion shared tests",
+    "lint": "oxlint src companion shared desktop api tests",
     "verify": "pnpm lint && pnpm format:check && pnpm test && pnpm build && pnpm test:e2e",
     "test:hosted": "playwright test --config playwright.hosted.config.ts",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "connect:build": "node tools/build-connect.mjs",
+    "connect:dev": "pnpm connect:build && electron desktop-app",
+    "connect:package": "pnpm connect:build && electron-builder --config electron-builder.yml --mac --arm64",
+    "test:connect": "pnpm connect:build && playwright test --config playwright.connect.config.ts"
   },
   "dependencies": {
     "@codemirror/commands": "^6.11.1",
@@ -36,7 +40,11 @@
   "devDependencies": {
     "@playwright/test": "^1.63.0",
     "@types/node": "^26.6.4",
+    "@vercel/node": "^20.0.0",
     "@vitejs/plugin-vue": "^6.0.9",
+    "electron": "44.5.1",
+    "electron-builder": "26.15.3",
+    "esbuild": "^0.28.2",
     "oxlint": "^1.86.0",
     "prettier": "^3.9.9",
     "tsx": "^4.23.15",

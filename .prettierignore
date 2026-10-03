@@ -4,3 +4,6 @@ artifacts
 node_modules
 test-results
 .vercel
+
+desktop-app
+release
