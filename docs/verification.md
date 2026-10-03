@@ -12,11 +12,17 @@ Node coverage includes real HTTP and temporary-file save/reopen, stale saves, or
 
 ## Packaged and live checks
 
-The earlier CLI-based POC was verified against production with a real local Codex rewrite and exact disk-byte comparison. That evidence used manual token pairing and does not establish the new desktop onboarding.
+**Passed against production with the packaged Apple Silicon companion in 11.7 seconds.** Bundled Codex returned “Clearer writing uses simpler words.” The complete saved file matched the accepted replacement plus its unchanged heading and final paragraph. Reloading reconnected automatically and reopened the saved file.
 
-The updated `pnpm test:hosted` scenario launches the packaged Apple Silicon companion with a disposable folder/profile, connects from the production HTTPS page in installed Chrome, invokes its bundled Codex, reviews and saves a real rewrite, checks exact disk bytes, and reconnects after reload. Native folder/approval dialogs are controlled and the normal browser local-network permission is granted by Playwright. It uses existing local provider authentication and consumes real usage.
+![Production inline review from bundled Codex](images/hosted-connect-review.png)
+
+The `pnpm test:hosted` scenario launches the packaged Apple Silicon companion with a disposable folder/profile, connects from the production HTTPS page in installed Chrome, invokes its bundled Codex, reviews and saves a real rewrite, checks exact disk bytes, and reconnects after reload. Native folder/approval dialogs are controlled and the normal browser local-network permission is granted by Playwright. It uses existing local provider authentication and consumes real usage.
 
 Run the live scenario only after packaging and deploying the matching UI. Reports and screenshots are saved under ignored `artifacts/browser`. Do not run companion scenarios concurrently because they bind the same loopback port.
+
+## Visual inspection
+
+Inspected the native companion window and production inline-review screenshot. The folder, sign-in, open-editor, login preference, status, revoke, and quit controls fit the native window. The production review clearly separates the original selection, suggested replacement, and accept/reject controls. This is not a full accessibility audit.
 
 ## Release limits
 
