@@ -1,1 +1,48 @@
-{"name":"foolscap-web-poc","version":"0.1.0","private":true,"type":"module","packageManager":"pnpm@10.28.2","engines":{"node":">=22.13.0"},"scripts":{"dev":"vite --host 127.0.0.1","build":"vue-tsc --noEmit && tsc --noEmit -p tsconfig.node.json && vite build","preview":"vite preview --host 127.0.0.1","companion":"tsx companion/cli.ts","test":"vitest run","test:e2e":"playwright test","lint":"oxlint src companion shared tests","verify":"pnpm lint && pnpm test && pnpm build && pnpm test:e2e"},"dependencies":{"@codemirror/commands":"^6.11.1","@codemirror/lang-markdown":"^6.5.2","@codemirror/language":"^6.12.4","@codemirror/state":"^6.7.6","@codemirror/view":"^6.43.13","@fontsource/ibm-plex-mono":"^5.3.0","@lezer/highlight":"^1.2.5","@lucide/vue":"^1.50.0","reka-ui":"^2.10.5","vue":"^3.5.43","zod":"^4.6.5"},"devDependencies":{"@playwright/test":"^1.63.0","@types/node":"^26.6.4","@vitejs/plugin-vue":"^6.0.9","oxlint":"^1.86.0","tsx":"^4.23.15","typescript":"^5.9.3","vite":"^8.3.2","vitest":"^5.0.3","vue-tsc":"^3.3.12"}}
+{
+  "name": "foolscap-web-poc",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.28.2",
+  "engines": {
+    "node": "^22.13.0 || ^24.0.0"
+  },
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "vue-tsc --noEmit && tsc --noEmit -p tsconfig.node.json && vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "companion": "tsx companion/cli.ts",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "lint": "oxlint src companion shared tests",
+    "verify": "pnpm lint && pnpm format:check && pnpm test && pnpm build && pnpm test:e2e",
+    "test:hosted": "playwright test --config playwright.hosted.config.ts",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "dependencies": {
+    "@codemirror/commands": "^6.11.1",
+    "@codemirror/lang-markdown": "^6.5.2",
+    "@codemirror/language": "^6.12.4",
+    "@codemirror/state": "^6.7.6",
+    "@codemirror/view": "^6.43.13",
+    "@fontsource/ibm-plex-mono": "^5.3.0",
+    "@lezer/highlight": "^1.2.5",
+    "@lucide/vue": "^1.50.0",
+    "reka-ui": "^2.10.5",
+    "vue": "^3.5.43",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "@types/node": "^26.6.4",
+    "@vitejs/plugin-vue": "^6.0.9",
+    "oxlint": "^1.86.0",
+    "prettier": "^3.9.9",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3",
+    "vite": "^8.3.2",
+    "vitest": "^5.0.3",
+    "vue-tsc": "^3.3.12"
+  }
+}

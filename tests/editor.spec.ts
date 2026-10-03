@@ -22,7 +22,9 @@ test('typing invalidates an outstanding proposal', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Accept edit' })).toHaveCount(0)
   await expect(page.getByRole('status')).toContainText('draft changed')
 })
-test('paired browser opens a file, reviews a fixture rewrite, saves and reopens exact text', async ({ page }) => {
+test('paired browser opens a file, reviews a fixture rewrite, saves and reopens exact text', async ({
+  page,
+}) => {
   await page.goto('/')
   await page.getByRole('button', { name: 'Connect local agent', exact: true }).click()
   await page.getByLabel('Companion address').fill('http://127.0.0.1:43124')
@@ -31,7 +33,11 @@ test('paired browser opens a file, reviews a fixture rewrite, saves and reopens 
   await page.getByRole('button', { name: 'Open local file' }).click()
   const editor = page.getByRole('textbox', { name: 'Markdown editor' })
   await expect(editor).toContainText('Browser proof')
-  await editor.click(); await editor.press('ControlOrMeta+End'); await editor.press('ArrowLeft'); await editor.press('Home'); await editor.press('Shift+End')
+  await editor.click()
+  await editor.press('ControlOrMeta+End')
+  await editor.press('ArrowLeft')
+  await editor.press('Home')
+  await editor.press('Shift+End')
   await page.getByRole('button', { name: 'Suggest an edit' }).click()
   await page.getByRole('button', { name: 'Accept edit' }).click()
   await page.getByRole('button', { name: 'Save file', exact: true }).click()
@@ -41,9 +47,12 @@ test('paired browser opens a file, reviews a fixture rewrite, saves and reopens 
   await expect(editor).not.toContainText('could be more clear')
 })
 test('narrow layout keeps editor and controls inside viewport', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 }); await page.goto('/')
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/')
   await expect(page.getByRole('textbox', { name: 'Markdown editor' })).toBeVisible()
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
+    true,
+  )
   await page.getByRole('button', { name: 'Preview an inline edit' }).click()
   await expect(page.getByRole('button', { name: 'Accept edit' })).toBeVisible()
 })

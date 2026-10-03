@@ -1,12 +1,14 @@
 # Foolscap Web POC
 
+[**Open the live experiment**](https://foolscap-web-poc.vercel.app) · [Verification evidence](docs/verification.md)
+
 A quiet Vue + Vite + CodeMirror writing room that connects a hosted website to a local file and a locally authenticated Codex CLI.
 
 This is a standalone experiment, not a port of the Electron application. The hosted app works immediately as a scratch editor with a clearly labelled, scripted inline-edit demo.
 
 ## Run locally
 
-Requires Node 22.13+ and pnpm 10.28.2.
+Requires Node 22.13+ (22.x) or 24.x and pnpm 10.28.2.
 
 ```sh
 pnpm install --frozen-lockfile
@@ -25,7 +27,7 @@ Start the companion in another terminal, choosing one Markdown file and the exac
 pnpm companion --file /absolute/path/to/draft.md --origin http://127.0.0.1:5197
 ```
 
-For the hosted site, replace the origin with the production URL. Multiple `--origin` arguments are supported. The origin must not have a trailing slash or path.
+For the hosted site, use `--origin https://foolscap-web-poc.vercel.app`. Multiple `--origin` arguments are supported. The origin must not have a trailing slash or path.
 
 1. Open the website and click **Connect local agent**.
 2. Paste the pairing token printed by the companion. Allow local network access if the browser asks.
@@ -74,7 +76,7 @@ pnpm exec playwright install chromium
 pnpm verify
 ```
 
-`verify` runs Oxlint, real-companion Node integration tests, strict typechecks, the Vite production build, and Chromium editor journeys. Browser tests use a **fixture rewrite provider**, not a live model. See [docs/verification.md](docs/verification.md) for separately recorded hosted and live-agent evidence.
+`verify` runs Oxlint, formatting checks, real-companion Node integration tests, strict typechecks, the Vite production build, and Chromium editor journeys. Browser tests use a **fixture rewrite provider**, not a live model. See [docs/verification.md](docs/verification.md) for separately recorded hosted and live-agent evidence.
 
 ## Deploy to Vercel
 

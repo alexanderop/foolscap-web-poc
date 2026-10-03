@@ -16,5 +16,7 @@ An agent can suggest a better sentence. You decide whether it belongs. Accept an
 
 Nothing is saved to disk until you choose Save file.
 `
-export const demoOriginal = 'It is important to note that the process of writing is something that can be improved by making use of simpler words and shorter sentences.'
-export const demoReplacement = 'Use simpler words and shorter sentences to make your writing clearer.'
+export const demoOriginal =
+  'It is important to note that the process of writing is something that can be improved by making use of simpler words and shorter sentences.'
+export const demoReplacement =
+  'Use simpler words and shorter sentences to make your writing clearer.'
